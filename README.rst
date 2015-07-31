@@ -7,3 +7,9 @@ Install
    pip install --user --upgrade git+https://github.com/matthieu-bruneaux/pygenes
    # Check that it worked
    pygenes -h
+
+Uninstall
+---------
+::
+
+   pip uninstall -y pygenes
