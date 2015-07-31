@@ -4,7 +4,7 @@ Install
 -------
 ::
 
-   pip install --user --upgrade git+https://github.com/matthieu-bruneaux/pygenes
+   pip install --user --upgrade git+https://github.com/mdjbru-forge/pygenes
    # Check that it worked
    pygenes -h
 
