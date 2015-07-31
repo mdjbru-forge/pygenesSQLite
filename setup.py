@@ -9,7 +9,7 @@ setup(name = "pygenes",
       py_modules = ["pygenes"],
       entry_points =  {
           "console_scripts" : [
-              "pygenes=pygenesMainScripts:main"
+              "pygenes=pygenesScripts:main"
           ]
       }
 )
