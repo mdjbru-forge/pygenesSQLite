@@ -479,7 +479,15 @@ class ObjectTable(object) :
             for item in self.items :
                 itemDict = item._asdict()
                 fo.write("\t".join([str(itemDict[x]) for x in headers]) + "\n")
-        
+
+### *** getHeaders(self)
+
+    def getHeaders(self) :
+        """Return the headers of the table
+
+        """
+        headers = list(self.itemType()._asdict().keys())
+        return headers
 
 ### ** AlnPosTable() ObjectTable
 
@@ -648,20 +656,22 @@ class GeneTable(ObjectTable) :
         self.simplifiedSeqs = None
         self._geneIdDict = dict()
         
-### *** parseGenBankRecord(self, gbRecord)
+### *** parseGenBankRecord(self, gbRecord, hashConstructor = hashlib.md5)
 
-    def parseGenBankRecord(self, gbRecord) :
+    def parseGenBankRecord(self, gbRecord, hashConstructor = hashlib.md5) :
         """Parse the content of a GenBank record
 
         Args:
             gbRecord (Bio.SeqRecord.SeqRecord): GenBank Record object. It can 
               also be a list of GenBank Record objects, a path to a GenBank
               record or a list of paths to GenBank records.
+            hashConstructor (from hashlib module): If not None, used to 
+              calculate hash for each peptide sequence
         """
         # TODO: Set simplifiedSeqs to None when new sequences are parsed?
         if isinstance(gbRecord, list) :
             for r in gbRecord :
-                self.parseGenBankRecord(r)
+                self.parseGenBankRecord(r, hashConstructor)
         else :
             self.nParsedRecords += 1
             msg = "Parsing GenBank record " + str(self.nParsedRecords)
@@ -670,17 +680,141 @@ class GeneTable(ObjectTable) :
                 gbRecord = SeqIO.read(gbRecord, "genbank")
             allCDS = [x for x in gbRecord.features if x.type == "CDS"]
             for CDS in allCDS :
-                gene = self.itemType(recordId = "GI:" + gbRecord.annotations["gi"],
-                  peptideSeq = ";".join(CDS.qualifiers.get("translation", ["None"])),
+                peptideSeq = ";".join(CDS.qualifiers.get("translation", ["None"]))
+                if hashConstructor is not None :
+                    h = hashConstructor()
+                    h.update(peptideSeq)
+                    peptideHash = h.hexdigest()
+                else :
+                    peptideHash = "None"
+                recordId = "GI:" + gbRecord.annotations["gi"]
+                location = str(CDS.location)
+                h = hashlib.md5()
+                h.update(recordId + location)
+                geneId = h.hexdigest()
+                gene = self.itemType(recordId = recordId,
+                  peptideSeq = peptideSeq,
+                  peptideHash = peptideHash,
                   peptideLength = str(len(";".join(CDS.qualifiers.get("translation", ["None"])))),
                   codingSeq = extractCodingSeqFast(CDS, gbRecord),
-                  location = str(CDS.location),
+                  location = location,
+                  geneId = geneId,
                   translationTable = ";".join(CDS.qualifiers.get("transl_table", ["None"])),
                   gene = ";".join(CDS.qualifiers.get("gene", ["None"])),
                   product = ";".join(CDS.qualifiers.get("product", ["None"])),
                   proteinId = ";".join(CDS.qualifiers.get("protein_id", ["None"])))
+                if hashConstructor is not None :
+                    h = hashConstructor()
+                    h.update(gene.peptideSeq)
+                    gene.peptideHash = h.hexdigest()
                 self.items.append(gene)
 
+### *** parseEMBLRecord(self, EMBLRecord, hashConstructor = hashlib.md5)
+
+    def parseEMBLRecord(self, EMBLRecord, hashConstructor = hashlib.md5) :
+        """Parse the content of an EMBL record
+
+        Args:
+            EMBLRecord (Bio.SeqRecord.SeqRecord): EMBL Record object. It can 
+              also be a list of EMBL Record objects, a path to a EMBL
+              record or a list of paths to EMBL records.
+            hashConstructor (from hashlib module): If not None, used to 
+              calculate hash for each peptide sequence
+
+        """
+        # TODO: Set simplifiedSeqs to None when new sequences are parsed?
+        if isinstance(EMBLRecord, list) :
+            for r in EMBLRecord :
+                self.parseEMBLRecord(r, hashConstructor)
+        else :
+            self.nParsedRecords += 1
+            msg = "Parsing EMBL record " + str(self.nParsedRecords)
+            self.stderr.write(msg + "\n")
+            if isinstance(EMBLRecord, str) :
+                EMBLRecord = SeqIO.parse(EMBLRecord, "embl")
+            for record in EMBLRecord :
+                allCDS = [x for x in record.features if x.type == "CDS"]
+                for CDS in allCDS :
+                    peptideSeq = ";".join(CDS.qualifiers.get("translation", ["None"]))
+                    if hashConstructor is not None :
+                        h = hashConstructor()
+                        h.update(peptideSeq)
+                        peptideHash = h.hexdigest()
+                    else :
+                        peptideHash = "None"
+                    recordId = record.id
+                    location = str(CDS.location)
+                    h = hashlib.md5()
+                    h.update(recordId + location)
+                    geneId = h.hexdigest()
+                    gene = self.itemType(recordId = recordId,
+                      peptideSeq = peptideSeq,
+                      peptideHash = peptideHash,
+                      peptideLength = str(len(";".join(CDS.qualifiers.get("translation", ["None"])))),
+                      codingSeq = extractCodingSeqFast(CDS, record),
+                      location = location,
+                      geneId = geneId,
+                      translationTable = ";".join(CDS.qualifiers.get("transl_table", ["None"])),
+                      gene = ";".join(CDS.qualifiers.get("gene", ["None"])),
+                      product = ";".join(CDS.qualifiers.get("product", ["None"])),
+                      proteinId = ";".join(CDS.qualifiers.get("protein_id", ["None"])))
+                    self.items.append(gene)
+
+### *** streamEMBLRecord(self, EMBLRecord, outFile, headers, hashConstructor = hashlib.md5)
+
+    def streamEMBLRecord(self, EMBLRecord, outFile, headers, hashConstructor = hashlib.md5) :
+        """Parse the content of an EMBL record and write it to a file instead 
+        of storing it.
+
+        Args:
+            EMBLRecord (Bio.SeqRecord.SeqRecord): EMBL Record object. It can 
+              also be a list of EMBL Record objects, a path to a EMBL
+              record or a list of paths to EMBL records.
+            hashConstructor (from hashlib module): If not None, used to 
+              calculate hash for each peptide sequence
+            outFile (file): File handle for output
+            headers (list of str): Headers of the output file
+
+        """
+        # TODO: Set simplifiedSeqs to None when new sequences are parsed?
+        if isinstance(EMBLRecord, list) :
+            for r in EMBLRecord :
+                self.streamEMBLRecord(r, outFile, headers, hashConstructor)
+        else :
+            self.nParsedRecords += 1
+            msg = "(stream) Parsing EMBL record " + str(self.nParsedRecords)
+            self.stderr.write(msg + "\n")
+            if isinstance(EMBLRecord, str) :
+                EMBLRecord = SeqIO.parse(EMBLRecord, "embl")
+            for record in EMBLRecord :
+                allCDS = [x for x in record.features if x.type == "CDS"]
+                for CDS in allCDS :
+                    peptideSeq = ";".join(CDS.qualifiers.get("translation", ["None"]))
+                    if hashConstructor is not None :
+                        h = hashConstructor()
+                        h.update(peptideSeq)
+                        peptideHash = h.hexdigest()
+                    else :
+                        peptideHash = "None"
+                    recordId = record.id
+                    location = str(CDS.location)
+                    h = hashlib.md5()
+                    h.update(recordId + location)
+                    geneId = h.hexdigest()
+                    gene = self.itemType(recordId = recordId,
+                      peptideSeq = peptideSeq,
+                      peptideHash = peptideHash,
+                      peptideLength = str(len(";".join(CDS.qualifiers.get("translation", ["None"])))),
+                      codingSeq = extractCodingSeqFast(CDS, record),
+                      location = location,
+                      geneId = geneId,
+                      translationTable = ";".join(CDS.qualifiers.get("transl_table", ["None"])),
+                      gene = ";".join(CDS.qualifiers.get("gene", ["None"])),
+                      product = ";".join(CDS.qualifiers.get("product", ["None"])),
+                      proteinId = ";".join(CDS.qualifiers.get("protein_id", ["None"])))
+                    geneDict = gene._asdict()
+                    outFile.write("\t".join([str(geneDict[x]) for x in headers]) + "\n")
+                    
 ### *** makeGeneId(self)
 
     def makeGeneId(self) :

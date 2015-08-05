@@ -2,6 +2,14 @@
 
 # Entry points for the command line scripts
 
+DESCRIPTION = ( "Parse gene data present in GenBank records to produce a gene "
+"table containing summary information about each gene, such as the record of "
+"origin, the coding sequence, the protein sequence, hash values for the "
+"sequences, location, unique gene identifier, ... This utility can also merge "
+"similar sequences before running blastp, in order to reduce the run time when "
+"many very similar sequences are present. The gene table can be used by tools "
+"for gene clustering for example.")
+
 ### * Wishlist
 
 # pygenes parse genbank-records/* --genes gene.table --records records.table
@@ -28,33 +36,48 @@ def makeParser() :
         ArgumentParser: An argument parser
 
     """
-    parser = argparse.ArgumentParser()
-    subparsers = parser.add_subparsers(help = "One of the available actions")
+    parser = argparse.ArgumentParser(description = DESCRIPTION)
+    subparsers = parser.add_subparsers()
     # Parse GenBank records
-    sp_parse = subparsers.add_parser("parse",
+    sp_parseGB = subparsers.add_parser("parseGB",
+                                     description = "Parse GenBank records into "
+                                     "a gene table.",
                                      help = "Parse GenBank records to a table")
-    sp_parse.add_argument("gbRecords", metavar = "GB_RECORD", nargs = "+",
+    sp_parseGB.add_argument("gbRecords", metavar = "GB_RECORD", nargs = "+",
                           type = str,
                           help = "GenBank records")
-    sp_parse.add_argument("-g", "--genes", metavar = "FILE", type = str,
+    sp_parseGB.add_argument("-g", "--genes", metavar = "FILE", type = str,
                           help = "Output file for gene table")
-    sp_parse.add_argument("-r", "--records", metavar = "FILE", type = str,
+    sp_parseGB.add_argument("-r", "--records", metavar = "FILE", type = str,
                           help = "Output file for record table")
-    sp_parse.set_defaults(action = "parse")
-    # Calculate hash digests
-    sp_hash = subparsers.add_parser("hash",
-                                    help = "Produce hash digest (e.g. for peptides)")
-    sp_hash.add_argument("input", metavar = "INPUT_TABLE", type = str,
-                         help = "Input table")
-    sp_hash.add_argument("-o", "--output", metavar = "FILE", type = str,
-                         help = "Output file for gene table")
-    sp_hash.add_argument("--hash", metavar = "HASH_ALGORITHM",
-                         choices = ["md5", "sha1", "sha224", "sha256", "sha384",
-                                    "sha512"],
-                         default = "md5",
-                         help = "Hash algorithm to use for unique sequence signature "
-                         "(default: md5)")
-    sp_hash.set_defaults(action = "hash")
+    sp_parseGB.set_defaults(action = "parseGB")
+    # Parse EMBL records
+    sp_parseEMBL = subparsers.add_parser("parseEMBL",
+                                     description = "Parse EMBL records into "
+                                     "a gene table.",
+                                     help = "Parse EMBL records to a table")
+    sp_parseEMBL.add_argument("emblRecords", metavar = "EMBL_RECORD", nargs = "+",
+                          type = str,
+                          help = "EMBL records")
+    sp_parseEMBL.add_argument("-g", "--genes", metavar = "FILE", type = str,
+                          help = "Output file for gene table")
+    # sp_parseEMBL.add_argument("-r", "--records", metavar = "FILE", type = str,
+    #                       help = "Output file for record table")
+    sp_parseEMBL.set_defaults(action = "parseEMBL")
+    # # Calculate hash digests
+    # sp_hash = subparsers.add_parser("hash",
+    #                                 help = "Produce hash digest (e.g. for peptides)")
+    # sp_hash.add_argument("input", metavar = "INPUT_TABLE", type = str,
+    #                      help = "Input table")
+    # sp_hash.add_argument("-o", "--output", metavar = "FILE", type = str,
+    #                      help = "Output file for gene table")
+    # sp_hash.add_argument("--hash", metavar = "HASH_ALGORITHM",
+    #                      choices = ["md5", "sha1", "sha224", "sha256", "sha384",
+    #                                 "sha512"],
+    #                      default = "md5",
+    #                      help = "Hash algorithm to use for unique sequence signature "
+    #                      "(default: md5)")
+    # sp_hash.set_defaults(action = "hash")
     # Merge peptides (from gene table)
     sp_mergePep = subparsers.add_parser("mergePep",
                                      help = "Merge similar peptides")
@@ -106,15 +129,16 @@ def main(args = None, stdout = None, stderr = None) :
     if stderr is None :
         stderr = sys.stderr
     dispatch = dict()
-    dispatch["parse"] = main_parse
+    dispatch["parseGB"] = main_parseGB
+    dispatch["parseEMBL"] = main_parseEMBL
     dispatch["hash"] = main_hash
     dispatch["mergePep"] = main_mergePep
     dispatch["extract"] = main_extract
     dispatch[args.action](args, stdout, stderr)
     
-### ** Main parse
+### ** Main parseGB
 
-def main_parse(args, stdout, stderr) :
+def main_parseGB(args, stdout, stderr) :
     if args.genes is None and args.records is None :
         msg = "You should use at least one of -g or -r. Use -h for help.\n"
         stdout.write(msg)
@@ -123,8 +147,6 @@ def main_parse(args, stdout, stderr) :
         geneTable = pygenes.GeneTable()
         geneTable.parseGenBankRecord(args.gbRecords)
         stderr.write("Calculating geneId hash\n")
-        geneTable.makeGeneId()
-        stderr.write("Writing gene table\n")
         geneTable.writeTable(args.genes)
     if args.records is not None :
         stderr.write("Getting record items\n")
@@ -135,6 +157,29 @@ def main_parse(args, stdout, stderr) :
         recordTable.writeTable(args.records)
     sys.exit(0)
 
+### ** Main parseEMBL
+
+def main_parseEMBL(args, stdout, stderr) :
+    # if args.genes is None and args.records is None :
+    #     msg = "You should use at least one of -g or -r. Use -h for help.\n"
+    #     stdout.write(msg)
+    #     sys.exit(0)
+    if args.genes is not None :
+        geneTable = pygenes.GeneTable()
+        headers = geneTable.getHeaders()
+        with open(args.genes, "w") as fo :
+            fo.write("#" + "\t".join(headers) + "\n")
+            geneTable.streamEMBLRecord(args.emblRecords, outFile = fo,
+                                       headers = headers)
+    # if args.records is not None :
+    #     stderr.write("Getting record items\n")
+    #     recordTable = pygenes.RecordTable()
+    #     for r in args.gbRecords :
+    #         recordTable.addGenBankRecord(r)
+    #     stderr.write("Writing record table\n")
+    #     recordTable.writeTable(args.records)
+    sys.exit(0)
+    
 ### ** Main hash
 
 def main_hash(args, stdout, stderr) :
