@@ -205,6 +205,22 @@ def mergeSequences(sequences, maxDistance) :
         stop = (len(simpleNodes) < 2) or (minDistance > maxDistance)
     return mapping
 
+### ** md5hash(string)
+
+def md5hash(string) :
+    """Calculate the md5 hash for a string
+
+    Args:
+        string (str): Input string
+
+    Returns:
+        str: Md5 hash for the input string
+
+    """
+    h = hashlib.md5()
+    h.update(string)
+    return h.hexdigest()
+
 ### ** invertDict(inputDict)
 
 def invertDict(inputDict) :
