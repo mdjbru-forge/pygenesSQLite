@@ -368,7 +368,33 @@ def locStr2int(locationString, ignoreFuzzy = False) :
     if sense == "-" :
         indices.reverse()
     return [(x, sense) for x in indices]
-    
+
+### ** buildGeneTableFileIndex(filename)
+
+def buildGeneTableFileIndex(filename) :
+    """Make one pass through a gene table file to build an index mapping 
+    peptide hash, last file position of corresponding record and length
+
+    Args:
+        filename (str): Path to the input file
+
+    Returns:
+        dict: Dictionary (peptideHash, (lastFilePos, peptideLength))
+
+    """
+    o = dict()
+    with open(filename, "r") as fi :
+        headers = fi.readline().lstrip("#").strip().split("\t")
+        hashI = headers.index("peptideHash")
+        lengthI = headers.index("peptideLength")
+        (pos, line) = (fi.tell(), fi.readline().strip())
+        while line :
+            elements = line.split("\t")
+            if (len(elements) > 0) :
+                o[elements[hashI]] = (pos, elements[lengthI])
+            (pos, line) = (fi.tell(), fi.readline().strip())
+    return o
+
 ### * Named tuples
 
 # How to set default values for a named tuple:
