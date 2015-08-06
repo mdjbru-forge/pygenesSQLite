@@ -61,8 +61,8 @@ def makeParser() :
                           help = "EMBL records")
     sp_parseEMBL.add_argument("-g", "--genes", metavar = "FILE", type = str,
                           help = "Output file for gene table")
-    # sp_parseEMBL.add_argument("-r", "--records", metavar = "FILE", type = str,
-    #                       help = "Output file for record table")
+    sp_parseEMBL.add_argument("-r", "--records", metavar = "FILE", type = str,
+                          help = "Output file for record table")
     sp_parseEMBL.set_defaults(action = "parseEMBL")
     # # Calculate hash digests
     # sp_hash = subparsers.add_parser("hash",
@@ -171,13 +171,15 @@ def main_parseEMBL(args, stdout, stderr) :
             fo.write("#" + "\t".join(headers) + "\n")
             geneTable.streamEMBLRecord(args.emblRecords, outFile = fo,
                                        headers = headers)
-    # if args.records is not None :
-    #     stderr.write("Getting record items\n")
-    #     recordTable = pygenes.RecordTable()
-    #     for r in args.gbRecords :
-    #         recordTable.addGenBankRecord(r)
-    #     stderr.write("Writing record table\n")
-    #     recordTable.writeTable(args.records)
+    if args.records is not None :
+        msg = "Parsing records into record table"
+        stderr.write(msg + "\n")
+        recordTable = pygenes.RecordTable()
+        headers = recordTable.getHeaders()
+        with open(args.records, "w") as fo :
+            fo.write("#" + "\t".join(headers) + "\n")
+            for r in args.emblRecords :
+                recordTable.streamEMBLRecord(r, fo, headers)
     sys.exit(0)
     
 ### ** Main hash

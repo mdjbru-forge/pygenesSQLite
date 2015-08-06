@@ -641,6 +641,34 @@ class RecordTable(ObjectTable) :
         d["length"] = len(d["sequence"])
         self.items.append(Record(**d))
 
+### *** streamEMBLRecord(self, EMBLRecord, outFile, headers)
+
+    def streamEMBLRecord(self, EMBLRecord, outFile, headers) :
+        """Add an EMBL record data to an output file
+
+        Args:
+            EMBLRecord (Bio.SeqRecord.SeqRecord): EMBL Record object
+            outFile (file): File handle to output file
+            headers (list of str): Headers of the ouput file
+
+        """
+        if isinstance(EMBLRecord, str) :
+            EMBLRecord = SeqIO.parse(EMBLRecord, "embl")
+        for record in EMBLRecord :
+            d = dict()
+            d["recordId"] = record.id
+            if record.description.endswith(", complete genome.") :
+                d["strainName"] = record.description[:-18]
+            else :
+                d["strainName"] = "NA"
+            d["database"] = "Ensembl/EMBL"
+            d["sequence"] = str(record.seq)
+            d["organism"] = record.annotations["organism"]
+            d["description"] = record.description
+            d["references"] = "<REFSEP>".join([str(x) for x in record.annotations["references"]]).replace("\n", "<FIELDSEP>")
+            d["length"] = len(d["sequence"])
+            outFile.write("\t".join([str(d.get(x, "None")) for x in headers]) + "\n")
+
 ### ** GeneTable() ObjectTable
 
 class GeneTable(ObjectTable) :
