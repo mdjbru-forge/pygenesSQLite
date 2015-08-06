@@ -593,7 +593,8 @@ class RecordTable(ObjectTable) :
         ObjectTable.__init__(self)
         self.itemType = Record
         self._recordIdDict = dict()
-
+        self.nRecords = 0
+        
 ### *** refreshRecordIdDict(self)
 
     def refreshRecordIdDict(self) :
@@ -652,6 +653,9 @@ class RecordTable(ObjectTable) :
             headers (list of str): Headers of the ouput file
 
         """
+        self.nRecords += 1
+        msg = "(stream) Parsing record " + str(self.nRecords)
+        sys.stderr.write(msg + "\n")
         if isinstance(EMBLRecord, str) :
             EMBLRecord = SeqIO.parse(EMBLRecord, "embl")
         for record in EMBLRecord :
