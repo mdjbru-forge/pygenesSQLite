@@ -395,6 +395,27 @@ def buildGeneTableFileIndex(filename) :
             (pos, line) = (fi.tell(), fi.readline().strip())
     return o
 
+### ** buildLengthFileIndex(hashFileIndex)
+
+def buildLengthFileIndex(hashFileIndex) :
+    """Build a dictionary mapping length to a list of peptide hash and file
+    position from the output of buildGeneTableFileIndex
+
+    Args:
+        hashFileIndex (dict): Mapping (peptideHash, (lastFilePos, 
+          peptideLength)), output from buildGeneTableFileIndex
+
+    Returns:
+        dict: Dictionary (length, [(hash, pos)])
+    
+    """
+    o = dict()
+    for (k, v) in hashFileIndex.items() :
+        length = int(v[1])
+        o[length] = o.get(length, [])
+        o[length].append((k, v[0]))
+    return o
+
 ### * Named tuples
 
 # How to set default values for a named tuple:
