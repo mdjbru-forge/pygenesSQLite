@@ -22,6 +22,7 @@ DESCRIPTION = ( "Parse gene data present in GenBank records to produce a gene "
 
 import sys
 import argparse
+import shutil
 import hashlib
 import collections
 from Bio import SeqIO
@@ -201,12 +202,39 @@ def main_hash(args, stdout, stderr) :
 ### ** Main mergePep
 
 def main_mergePep(args, stdout, stderr) :
-    geneTable = pygenes.GeneTable()
-    geneTable.loadTable(args.input)
-    geneTable.extractSimplifiedPeptides(args.dissim)
-    geneTable.writeTable(args.output)
-    geneTable.writeSimplifiedPeptides(args.fasta)
-
+    msg = "Building the hash index"
+    stderr.write(msg + "\n")
+    hashIndex = pygenes.buildGeneTableFileIndex(args.input)
+    msg = "Building the length index"
+    stderr.write(msg + "\n")
+    lengthIndex = pygenes.buildLengthFileIndex(hashIndex)
+    hashToMerged = dict()
+    with open(args.fasta, "w") as fo :
+        for l in lengthIndex.keys() :
+            msg = "Merging sequences of length " + str(l)
+            stderr.write(msg + "\n")
+            sequences = pygenes.gatherSequences(args.input, lengthIndex, l)
+            mergedSequences = pygenes.mergeSequences(sequences, args.dissim)
+            for (k, v) in mergedSequences.items() :
+                originalHash = pygenes.md5hash(k)
+                mergedHash = pygenes.md5hash(v)
+                assert not hashToMerged.get(originalHash, False)
+                hashToMerged[originalHash] = mergedHash
+            newMerged = set(mergedSequences.values())
+            for seq in newMerged :
+                fo.write(">" + pygenes.md5hash(seq) + "\n")
+                fo.write(seq + "\n")
+    with open(args.input, "r") as fi :
+        with open("tmp." + args.output, "w") as fo :
+            headers = fi.readline()
+            headerElements = headers.lstrip("#").strip().split("\t")
+            fo.write(headers)
+            for line in fi :
+                content = dict(zip(headerElements, line.strip().split("\t")))
+                content["mergedPeptideHash"] = hashToMerged[content["peptideHash"]]
+                fo.write("\t".join([content[x] for x in headerElements]) + "\n")
+    shutil.move("tmp." + args.output, args.output)
+                
 ### ** Main extract
 
 def main_extract(args, stdout, stderr) :

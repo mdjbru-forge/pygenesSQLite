@@ -204,7 +204,43 @@ def mergeSequences(sequences, maxDistance) :
         (distances, minDistance) = seqDistances(simpleNodes, distances)
         stop = (len(simpleNodes) < 2) or (minDistance > maxDistance)
     return mapping
-        
+
+### ** md5hash(string)
+
+def md5hash(string) :
+    """Calculate the md5 hash for a string
+
+    Args:
+        string (str): Input string
+
+    Returns:
+        str: Md5 hash for the input string
+
+    """
+    h = hashlib.md5()
+    h.update(string)
+    return h.hexdigest()
+
+### ** invertDict(inputDict)
+
+def invertDict(inputDict) :
+    """Build the reciprocal dictionary from an input dictionary, i.e. from a
+    mapping (k, v) where all k are unique a mapping (v, [k]) where [k] is the 
+    list of keys mapping to the same value v in the original dictionary
+
+    Args:
+        inputDict (dict): Input dictionary (k, v)
+
+    Returns:
+        dict: Dictionary (v, [k])
+
+    """
+    o = dict()
+    for (k, v) in inputDict.items() :
+        o[v] = o.get(v, [])
+        o[v].append(k)
+    return o
+
 ### ** mergeSequencesOld(sequences, maxDistance)
 
 def mergeSequencesOld(sequences, maxDistance) :
@@ -368,7 +404,136 @@ def locStr2int(locationString, ignoreFuzzy = False) :
     if sense == "-" :
         indices.reverse()
     return [(x, sense) for x in indices]
+
+### ** buildGeneTableFileIndex(filename)
+
+def buildGeneTableFileIndex(filename) :
+    """Make one pass through a gene table file to build an index mapping 
+    peptide hash, last file position of corresponding record and length
+
+    Args:
+        filename (str): Path to the input file
+
+    Returns:
+        dict: Dictionary (peptideHash, (lastFilePos, peptideLength))
+
+    """
+    o = dict()
+    with open(filename, "r") as fi :
+        headers = fi.readline().lstrip("#").strip().split("\t")
+        hashI = headers.index("peptideHash")
+        lengthI = headers.index("peptideLength")
+        (pos, line) = (fi.tell(), fi.readline().strip())
+        while line :
+            elements = line.split("\t")
+            if (len(elements) > 0) :
+                o[elements[hashI]] = (pos, elements[lengthI])
+            (pos, line) = (fi.tell(), fi.readline().strip())
+    return o
+
+### ** buildGeneTableFileIndexField(filename, field)
+
+def buildGeneTableFileIndexField(filename, field) :
+    """Make one pass through a gene table file to build an index mapping 
+    one of the field with the file positions of corresponding gene entries
+
+    Args:
+        filename (str): Path to the input file
+        field (str): Header of the column to use as a field (e.g. "mergedPeptideHash")
+
+    Returns:
+        dict: Dictionary (peptideHash, [filePositions])
+
+    """
+    o = dict()
+    with open(filename, "r") as fi :
+        headers = fi.readline().lstrip("#").strip().split("\t")
+        fieldI = headers.index(field)
+        (pos, line) = (fi.tell(), fi.readline().strip())
+        while line :
+            elements = line.split("\t")
+            if (len(elements) > 0) :
+                o[elements[fieldI]] = o.get(elements[fieldI], [])
+                o[elements[fieldI]].append(pos)
+            (pos, line) = (fi.tell(), fi.readline().strip())
+    return o
+
+### ** buildGeneTableMergedHashDict(filename)
+
+def buildGeneTableMergedHashDict(filename) :
+    """Build a dictionary mapping merged peptide hash and protein sequences
+
+    Args:
+        filename (str): Path to the input file
+
+    Returns:
+        dict: Dictionary (peptideHash, [(geneId, protSeq)])
+
+    """
+    o = dict()
+    with open(filename, "r") as fi :
+        headers = fi.readline().lstrip("#").strip().split("\t")
+        mergedHashI = headers.index("mergedPeptideHash")
+        geneIdI = headers.index("geneId")
+        protSeqI = headers.index("peptideSeq")
+        (pos, line) = (fi.tell(), fi.readline().strip())
+        while line :
+            elements = line.split("\t")
+            if (len(elements) > 0) :
+                o[elements[mergedHashI]] = o.get(elements[mergedHashI], [])
+                o[elements[mergedHashI]].append((elements[geneIdI],
+                                            elements[protSeqI]))
+            (pos, line) = (fi.tell(), fi.readline().strip())
+    return o
+
+### ** buildLengthFileIndex(hashFileIndex)
+
+def buildLengthFileIndex(hashFileIndex) :
+    """Build a dictionary mapping length to a list of peptide hash and file
+    position from the output of buildGeneTableFileIndex
+
+    Args:
+        hashFileIndex (dict): Mapping (peptideHash, (lastFilePos, 
+          peptideLength)), output from buildGeneTableFileIndex
+
+    Returns:
+        dict: Dictionary (length, [(hash, pos)])
     
+    """
+    o = dict()
+    for (k, v) in hashFileIndex.items() :
+        length = int(v[1])
+        o[length] = o.get(length, [])
+        o[length].append((k, v[0]))
+    return o
+
+### ** gatherSequences(filename, lengthIndex, targetLength)
+
+def gatherSequences(filename, lengthIndex, targetLength) :
+    """Collect the peptide sequences of a given length from a gene table
+    file.
+
+    Args:
+        filename (str): Path to the gene table file
+        lengthIndex (dict): Dictionary (length, [(hash, pos)]), output from
+          buildLengthFileIndex
+        targetLength (int): Length for which to extract sequences
+
+    Returns:
+        list of str: List of sequences of target length
+
+    """
+    o = []
+    with open(filename, "r") as fi :
+        headers = fi.readline().lstrip("#").strip().split("\t")
+        sequenceI = headers.index("peptideSeq")
+        targets = lengthIndex.get(targetLength, [])
+        for target in targets :
+            fi.seek(target[1])
+            line = fi.readline().strip().split("\t")
+            o.append(line[sequenceI])
+    return o
+
 ### * Named tuples
 
 # How to set default values for a named tuple:
