@@ -431,6 +431,61 @@ def buildGeneTableFileIndex(filename) :
             (pos, line) = (fi.tell(), fi.readline().strip())
     return o
 
+### ** buildGeneTableFileIndexField(filename, field)
+
+def buildGeneTableFileIndexField(filename, field) :
+    """Make one pass through a gene table file to build an index mapping 
+    one of the field with the file positions of corresponding gene entries
+
+    Args:
+        filename (str): Path to the input file
+        field (str): Header of the column to use as a field (e.g. "mergedPeptideHash")
+
+    Returns:
+        dict: Dictionary (peptideHash, [filePositions])
+
+    """
+    o = dict()
+    with open(filename, "r") as fi :
+        headers = fi.readline().lstrip("#").strip().split("\t")
+        fieldI = headers.index(field)
+        (pos, line) = (fi.tell(), fi.readline().strip())
+        while line :
+            elements = line.split("\t")
+            if (len(elements) > 0) :
+                o[elements[fieldI]] = o.get(elements[fieldI], [])
+                o[elements[fieldI]].append(pos)
+            (pos, line) = (fi.tell(), fi.readline().strip())
+    return o
+
+### ** buildGeneTableMergedHashDict(filename)
+
+def buildGeneTableMergedHashDict(filename) :
+    """Build a dictionary mapping merged peptide hash and protein sequences
+
+    Args:
+        filename (str): Path to the input file
+
+    Returns:
+        dict: Dictionary (peptideHash, [(geneId, protSeq)])
+
+    """
+    o = dict()
+    with open(filename, "r") as fi :
+        headers = fi.readline().lstrip("#").strip().split("\t")
+        mergedHashI = headers.index("mergedPeptideHash")
+        geneIdI = headers.index("geneId")
+        protSeqI = headers.index("peptideSeq")
+        (pos, line) = (fi.tell(), fi.readline().strip())
+        while line :
+            elements = line.split("\t")
+            if (len(elements) > 0) :
+                o[elements[mergedHashI]] = o.get(elements[mergedHashI], [])
+                o[elements[mergedHashI]].append((elements[geneIdI],
+                                            elements[protSeqI]))
+            (pos, line) = (fi.tell(), fi.readline().strip())
+    return o
+
 ### ** buildLengthFileIndex(hashFileIndex)
 
 def buildLengthFileIndex(hashFileIndex) :
