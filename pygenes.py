@@ -10,6 +10,7 @@ import sys
 import collections
 import itertools
 import warnings
+import os
 import hashlib
 from Bio import SeqIO
 
@@ -75,6 +76,107 @@ def seqDistances(seqList, distances = None, minDistance = None) :
                             minDistance = d
     return (distances, minDistance)
 
+### ** SeqDistanceCompo(compo1, compo2)
+
+def seqDistanceCompo(compo1, compo2) :
+    """Calculate the distance between compositions of protein sequences.  The
+    distance is calculated as the sum of the absolute differences in count for
+    each character, divided by 2 * (seq length). This is not a correct to
+    measure distance between sequences, but it should give a proxy of a lower
+    boundary for the actual distance.
+    
+    Args:
+        compo1 (Counter): Composition of sequence 1
+        compo2 (Counter): Composition of sequence 2
+
+    Return:
+        float
+    
+    """
+    assert sum(compo1.values()) == sum(compo2.values())
+    characters = set(compo1.keys() + compo2.keys())
+    d = 0
+    for c in characters :
+        d += abs(compo1.get(c, 0) - compo2.get(c, 0))
+    return d * 1. / (2 * sum(compo1.values()))
+
+### ** compoNodeDistances(nodes, distances = None)
+
+def compoNodeDistances(nodes, distances = None, minDistance = None) :
+
+    """Calculate the distances between all pairs of sequences in seqList
+    This is a fast implementation, looking not at the sequence itself but
+    at the composition of each sequence. It is extremely rough and can merge
+    sequences which are very different but have similar compositions.
+
+    Args:
+        nodes (list of Node): List of Node namedtuples (defined in 
+          mergeSequencesCompo)
+        distances (dict): A previous output from :func:`compoNodeDistances`, 
+          from which precalculated distances can be taken
+        minDistance (float): Previous minimum distance valuex
+
+    Returns:
+        tuple (dict, float): Dictionary mapping frozen sets {s1, s2} to the 
+          distance between s1 and s2, where {s1, s2} are all the possible sets 
+          of distinct node ids; minimum distance observed, 1 if no 
+          pairs of sequences.
+
+    """
+    distances_old = distances
+    if distances_old is None :
+        distances_old = dict()
+    if minDistance is None :
+        minDistance = 1
+    distances = dict()
+    k = 0
+    for i in nodes :
+        for j in nodes :
+            k += 1
+            if i.id != j.id :
+                if not distances.get(frozenset([i.id, j.id]), False) :
+                    if distances_old.get(frozenset([i.id, j.id]), False) :
+                        distances[frozenset([i.id, j.id])] = distances_old[frozenset([i.id, j.id])]
+                    else :
+                        characters = set(i.counter.keys() + j.counter.keys())
+                        d = sum([abs(i.counter.get(x, 0) - j.counter.get(x, 0)) for x in characters])
+                        d = d * 1. / (2 * sum(i.counter.values()))
+                        assert d <= 1
+                        distances[frozenset([i[0], j[0]])] = d
+                        if d < minDistance :
+                            minDistance = d
+            if k % 100000 == 0 :
+                sys.stderr.write("Distance no " + str(k) + "\n")
+    return (distances, minDistance)
+
+### ** nodeAverageCompo(nodeList)
+
+def nodeAverageCompo(nodeList) :
+    """Determine the merged Node from a list of Node
+
+    Args:
+        modeList (list of Node): List of Node namedtuples (defined in 
+          mergeSequencesCompo)
+
+    Return:
+        Node: Merged Node with id = "NA", counter = average of input Node 
+          counters and seqs = merged list of seqs from input Node
+
+    """
+    Node = collections.namedtuple("Node", ["id", "counter", "seqs"])
+    averageCounter = dict()
+    characters = list()
+    seqs = list()
+    for n in nodeList :
+        characters += list(n.counter.keys())
+        seqs += n.seqs
+    characters = set(characters)
+    seqs = list(set(seqs))
+    for c in characters :
+        averageCount = sum([x.counter.get(c, 0) for x in nodeList]) * 1. / len(nodeList)
+        averageCounter[c] = averageCount
+    return Node(id = "NA", counter = averageCounter, seqs = seqs)        
+    
 ### ** seqConsensus(seq1, seq2)
 
 def seqConsensus(seq1, seq2) :
@@ -141,9 +243,9 @@ def groupSets(setList) :
         groups.add(group)
     return list(groups)
 
-### ** mergeSequences(sequences, maxDistance)
+### ** mergeSequences(sequences, maxDistance, stderr = None)
 
-def mergeSequences(sequences, maxDistance) :
+def mergeSequences(sequences, maxDistance, stderr = None) :
     """We can imagine a dendrogram based on the distance between sequences.
 
     Terminal nodes are the original sequences, and intermediates nodes are
@@ -181,17 +283,28 @@ def mergeSequences(sequences, maxDistance) :
         sequences (iterable of str): Original sequences
         maxDistance (float): Maximum dissimilarity between sequences to be
           merged
+        stderr (file stream): Optional, stderr for verbosity
 
     Returns:
         dict: Dictionary mapping (original sequence, simplified sequence)
     
     """
+    closeStderr = False
+    if stderr is None :
+        stderr = open(os.devnull, "w")
+        closeStderr = True
+    stderr.write("Prepare nodes")
     leaves = list(sequences)
+    stderr.write(".")
     simpleNodes = list(sequences)
+    stderr.write(".")
     mapping = dict(zip(leaves, leaves))
+    stderr.write(".\n")
+    stderr.write("Calculating distances\n")
     (distances, minDistance) = seqDistances(simpleNodes)
     stop = (len(simpleNodes) < 2) or (minDistance > maxDistance)
     while not stop :
+        stderr.write("Merging\n")
         bestPairs = [x for x in distances.keys() if distances[x] == minDistance]
         mergingGroups = groupSets(bestPairs)
         for group in mergingGroups :
@@ -201,8 +314,117 @@ def mergeSequences(sequences, maxDistance) :
                     mapping[leaf] = simpleNode
             [simpleNodes.remove(x) for x in group]
             simpleNodes.append(simpleNode)
+        stderr.write("Calculating distances\n")
         (distances, minDistance) = seqDistances(simpleNodes, distances)
         stop = (len(simpleNodes) < 2) or (minDistance > maxDistance)
+    if closeStderr :
+        stderr.close()
+    return mapping
+
+### ** mergeSequencesCompo(sequences, maxDistance, stderr = None)
+
+def mergeSequencesCompo(sequences, maxDistance, stderr = None) :
+    """NOTE: THIS FUNCTION USES THE COMPOSITION OF EACH SEQUENCE TO CALCULATE
+    DISTANCES, NOT THE ACTUAL SEQUENCE ITSELF. USE ONLY IF YOU KNOW WHAT YOU
+    ARE DOING!
+
+    YOU SHOULD PROBABLY USE THE mergeSequences FUNCTION, NOT THIS ONE.
+
+    THIS FUNCTION CALCULATES DISTANCES BASED ONLY ON SEQUENCE COMPOSITION, NOT
+    ON THE ACTUAL ARRANGEMENT OF CHARACTERS IN THE STRING! THIS MEANS THAT TWO
+    SEQUENCES WHICH ARE VERY DIFFERENT BUT HAVE THE SAME COMPOSITION WILL BE
+    MERGED TOGETHER.
+
+    We can imagine a dendrogram based on the distance between composition of
+    sequences.
+
+    Terminal nodes are the original sequences, and intermediates nodes are just
+    described by the average composition of their children nodes (parent to the
+    root, children towards the leaves).
+
+    One intermediate node can have more than two children.
+
+    One node is described by its composition (a collections.Counter object) and
+    by a list of sequences it contains. This seems the downstream structure of
+    a given node is not known, except for the leaves (sequences) it contains.
+
+    We call "simplified nodes" a set of nodes so that every leaf has
+    exactly one of these nodes among its parents. At every instant, there is a
+    set of current "simplified nodes" and each leaf is assigned to one of them.
+
+    The starting state is with "simplified nodes" being the leaves.
+
+    The target state is with "simplified nodes" being only one or with
+    distance between them greater than the maxDistance value. We then return
+    the mapping between the leaves and the simplified nodes.
+
+    We proceed iteratively:
+    1. Check that there is more than one "simplified node"
+    2. Calculate all the distances between the current "simplified nodes"
+    3. Determine the minimum distance and check that it is not greater than the
+       threshold
+    4. Select all the pairs with this minimum distance
+    5. Make groups of connected pairs among those
+    6. For each independent group of connected pairs, merge them:
+         a. Determine the simplified node composition from those simplified nodes.
+            This is a newly determined node in the dendrogram.
+         b. Map the leaves (sequences) which were mapped to the simplified nodes
+            of the group to this new node
+         c. Remove the simplified nodes of the group from the current set 
+            of simplified nodes and add the new simplified node
+
+    Args:
+        sequences (iterable of str): Original sequences
+        maxDistance (float): Maximum value for the estimate of minimum 
+          dissimilarity between sequences to be merged
+        stderr (file stream): Optional, stderr for verbosity
+
+    Returns:
+        dict: Dictionary mapping (original sequence, simplified node id)
+
+    """
+    warnings.warn("Using mergeSequencesCompo, which does NOT give correct "
+                  "estimates for the distances between sequences. YOU "
+                  "PROBABLY SHOULDN'T DO THAT! Use mergeSequences "
+                  "instead.")
+    closeStderr = False
+    if stderr is None :
+        stderr = open(os.devnull, "w")
+        closeStderr = True
+    stderr.write("Prepare nodes")
+    Node = collections.namedtuple("Node", ["id", "counter", "seqs"])
+    nodeId = 0
+    nodes = dict()
+    for seq in sequences :
+        newNode = Node(nodeId, collections.Counter(seq), [seq])
+        nodes[nodeId] = newNode
+        nodeId += 1
+    stderr.write(".\n")
+    stderr.write("Calculating distances (" + str(len(nodes)) + "seqs)\n")
+    (distances, minDistance) = compoNodeDistances(nodes.values())
+    stop = (len(nodes) < 2) or (minDistance > maxDistance)
+    while not stop :
+        stderr.write("Merging\n")
+        stderr.write("Min distance: " + str(minDistance) + "\n")
+        bestPairs = [x for x in distances.keys() if distances[x] == minDistance]
+        print(bestPairs)
+        mergingGroups = groupSets(bestPairs)
+        for group in mergingGroups : # group is a set of node ids
+            print(group)
+            newNode = nodeAverageCompo([nodes[x] for x in group]) # Return a Node namedtuple
+            newNode2 = Node(id = nodeId, counter = newNode.counter, seqs = newNode.seqs)
+            [nodes.pop(x) for x in group]
+            nodes[nodeId] = newNode2
+            nodeId += 1
+        stderr.write("Calculating distances (" + str(len(nodes)) + "seqs)\n")
+        (distances, minDistance) = compoNodeDistances(nodes.values(), distances)
+        stop = (len(nodes) < 2) or (minDistance > maxDistance)
+    if closeStderr :
+        stderr.close()
+    mapping = dict()
+    for node in nodes.values() :
+        for seq in node.seqs :
+            mapping[seq] = node.id
     return mapping
 
 ### ** md5hash(string)
