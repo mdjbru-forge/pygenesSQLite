@@ -105,6 +105,14 @@ def makeParser() :
                             help = "Table type (default: gene)",
                             default = "gene")
     sp_extract.set_defaults(action = "extract")
+    # Count unique sequences in a fasta file
+    sp_countUniqFasta = subparsers.add_parser("count",
+                                              help = "Count unique sequences in "
+                                              "a fasta file (using hash)")
+    sp_countUniqFasta.add_argument("inputFiles", metavar = "FASTA_FILE",
+                                   type = str, nargs = "+",
+                                   help = "Input fasta file(s)")
+    sp_countUniqFasta.set_defaults(action = "count")
     # Return
     return parser
 
@@ -135,6 +143,7 @@ def main(args = None, stdout = None, stderr = None) :
     dispatch["hash"] = main_hash
     dispatch["mergePep"] = main_mergePep
     dispatch["extract"] = main_extract
+    dispatch["count"] = main_count
     dispatch[args.action](args, stdout, stderr)
     
 ### ** Main parseGB
@@ -248,3 +257,23 @@ def main_extract(args, stdout, stderr) :
     columns = table.col(*args.columns)
     for x in columns :
         stdout.write("\t".join(x) + "\n")
+
+### ** Main count
+
+def main_count(args, stdout, stderr) :
+    def h(string) :
+        h = hashlib.md5()
+        h.update(string)
+        return h.hexdigest()
+    cont = True
+    for f in args.inputFiles :
+        if cont :
+            try :
+                a = SeqIO.parse(f, "fasta")
+                uniqHash = set()
+                for s in a :
+                    uniqHash.add(h(str(s.seq)))
+                stdout.write(f + "\t" + str(len(uniqHash)) + "\n")
+            except IOError :
+                cont = False
+

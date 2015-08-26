@@ -293,18 +293,18 @@ def mergeSequences(sequences, maxDistance, stderr = None) :
     if stderr is None :
         stderr = open(os.devnull, "w")
         closeStderr = True
-    stderr.write("Prepare nodes")
+    stderr.write("Prepare nodes. ")
     leaves = list(sequences)
     stderr.write(".")
     simpleNodes = list(sequences)
     stderr.write(".")
     mapping = dict(zip(leaves, leaves))
     stderr.write(".\n")
-    stderr.write("Calculating distances\n")
+    stderr.write("Calculating distances. ")
     (distances, minDistance) = seqDistances(simpleNodes)
     stop = (len(simpleNodes) < 2) or (minDistance > maxDistance)
     while not stop :
-        stderr.write("Merging\n")
+        stderr.write("Merging " + str(len(simpleNodes)) + " sequences. ")
         bestPairs = [x for x in distances.keys() if distances[x] == minDistance]
         mergingGroups = groupSets(bestPairs)
         for group in mergingGroups :
@@ -314,9 +314,10 @@ def mergeSequences(sequences, maxDistance, stderr = None) :
                     mapping[leaf] = simpleNode
             [simpleNodes.remove(x) for x in group]
             simpleNodes.append(simpleNode)
-        stderr.write("Calculating distances\n")
+        stderr.write("Calculating distances. ")
         (distances, minDistance) = seqDistances(simpleNodes, distances)
         stop = (len(simpleNodes) < 2) or (minDistance > maxDistance)
+    stderr.write("\n")    
     if closeStderr :
         stderr.close()
     return mapping
