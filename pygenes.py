@@ -1123,10 +1123,6 @@ class GeneTable(ObjectTable) :
                   gene = ";".join(CDS.qualifiers.get("gene", ["None"])),
                   product = ";".join(CDS.qualifiers.get("product", ["None"])),
                   proteinId = ";".join(CDS.qualifiers.get("protein_id", ["None"])))
-                if hashConstructor is not None :
-                    h = hashConstructor()
-                    h.update(gene.peptideSeq)
-                    gene.peptideHash = h.hexdigest()
                 self.items.append(gene)
 
 ### *** parseEMBLRecord(self, EMBLRecord, hashConstructor = hashlib.md5)
