@@ -11,6 +11,7 @@ import collections
 import itertools
 import warnings
 import os
+import gzip
 import hashlib
 from Bio import SeqIO
 
@@ -1045,7 +1046,13 @@ class RecordTable(ObjectTable) :
         msg = "(stream) Parsing record " + str(self.nRecords)
         sys.stderr.write(msg + "\n")
         if isinstance(EMBLRecord, str) :
-            EMBLRecord = SeqIO.parse(EMBLRecord, "embl")
+            if not EMBLRecord.endswith(".gz") :
+                EMBLRecordGzToClose = False
+                EMBLRecord = SeqIO.parse(EMBLRecord, "embl")
+            else :
+                EMBLRecordGzToClose = True
+                EMBLRecordGz = gzip.open(EMBLRecord, "r")
+                EMBLRecord = SeqIO.parse(EMBLRecordGz, "embl")
         for record in EMBLRecord :
             d = dict()
             d["recordId"] = record.id
@@ -1060,7 +1067,9 @@ class RecordTable(ObjectTable) :
             d["references"] = "<REFSEP>".join([str(x) for x in record.annotations["references"]]).replace("\n", "<FIELDSEP>")
             d["length"] = len(d["sequence"])
             outFile.write("\t".join([str(d.get(x, "None")) for x in headers]) + "\n")
-
+        if EMBLRecordGzToClose :
+            EMBLRecordGz.close()
+            
 ### ** GeneTable() ObjectTable
 
 class GeneTable(ObjectTable) :
@@ -1147,7 +1156,13 @@ class GeneTable(ObjectTable) :
             msg = "Parsing EMBL record " + str(self.nParsedRecords)
             self.stderr.write(msg + "\n")
             if isinstance(EMBLRecord, str) :
-                EMBLRecord = SeqIO.parse(EMBLRecord, "embl")
+                if not EMBLRecord.endswith(".gz") :
+                    EMBLRecordGzToClose = False
+                    EMBLRecord = SeqIO.parse(EMBLRecord, "embl")
+                else :
+                    EMBLRecordGzToClose = True
+                    EMBLRecordGz = gzip.open(EMBLRecord, "r")
+                    EMBLRecord = SeqIO.parse(EMBLRecordGz, "embl")
             for record in EMBLRecord :
                 allCDS = [x for x in record.features if x.type == "CDS"]
                 for CDS in allCDS :
@@ -1175,6 +1190,8 @@ class GeneTable(ObjectTable) :
                       product = ";".join(CDS.qualifiers.get("product", ["None"])),
                       proteinId = ";".join(CDS.qualifiers.get("protein_id", ["None"])))
                     self.items.append(gene)
+            if EMBLRecordGzToClose :
+                EMBLRecordGz.close()
 
 ### *** streamEMBLRecord(self, EMBLRecord, outFile, headers, hashConstructor = hashlib.md5)
 
@@ -1201,7 +1218,13 @@ class GeneTable(ObjectTable) :
             msg = "(stream) Parsing EMBL record " + str(self.nParsedRecords)
             self.stderr.write(msg + "\n")
             if isinstance(EMBLRecord, str) :
-                EMBLRecord = SeqIO.parse(EMBLRecord, "embl")
+                if not EMBLRecord.endswith(".gz") :
+                    EMBLRecordGzToClose = False
+                    EMBLRecord = SeqIO.parse(EMBLRecord, "embl")
+                else :
+                    EMBLRecordGzToClose = True
+                    EMBLRecordGz = gzip.open(EMBLRecord, "r")
+                    EMBLRecord = SeqIO.parse(EMBLRecordGz, "embl")
             for record in EMBLRecord :
                 allCDS = [x for x in record.features if x.type == "CDS"]
                 for CDS in allCDS :
@@ -1230,6 +1253,8 @@ class GeneTable(ObjectTable) :
                       proteinId = ";".join(CDS.qualifiers.get("protein_id", ["None"])))
                     geneDict = gene._asdict()
                     outFile.write("\t".join([str(geneDict[x]) for x in headers]) + "\n")
+            if EMBLRecordGzToClose :
+                EMBLRecordGz.close()
                     
 ### *** makeGeneId(self)
 
