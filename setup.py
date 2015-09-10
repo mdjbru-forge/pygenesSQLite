@@ -5,7 +5,7 @@
 from setuptools import setup, find_packages
 
 setup(name = "pygenes",
-      version = "0.0.7",
+      version = "0.0.8",
       py_modules = ["pygenes", "pygenesScripts"],
       entry_points =  {
           "console_scripts" : [
