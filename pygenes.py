@@ -547,11 +547,15 @@ def extractCodingSeqFast(CDS, seqRecord) :
     and possibly reverse-complement it if needed. Use extractCodingSeqReliable 
     for a safer extraction.
     
+    Return "None" if CDS has no "translation" qualifier.
+
     Args:
         CDS (Bio.SeqFeature.SeqFeature): CDS object
         seqRecord (Bio.SeqRecord.SeqRecord): Original record to extract the 
           nucleotide from
     """
+    if not CDS.qualifiers.get("translation", False) :
+        return "None"
     if len(CDS.location.parts) > 1 :
         warnings.warn("CDS with complex location, using "
                       "extractCodingSeqReliable()\n" +
