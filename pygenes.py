@@ -561,19 +561,26 @@ def extractCodingSeqFast(CDS, seqRecord) :
         seq = seqRecord.seq[CDS.location.start:CDS.location.end]
         if CDS.location.strand == -1 :
             seq = seq.reverse_complement()
+    seq += "NN" # to enable translation of final codon if unambiguous
     # Test for translation
     checked = False
     i = 0
     while (not checked and i < 10) :
-        translated = str((seq[i: ] + "NN").translate(table = 11))
+        translated = str(seq[i: ].translate(table = 11))
         i += 1
         expected = CDS.qualifiers["translation"][0]
+        exp_len = len(expected) * 3
         if compareExpPredProt(translated, expected) :
             checked = True
             seq = seq[(i-1):]
     if not checked :
         sys.stderr.write("Expected: " + expected + "\n")
         sys.stderr.write("Predictd: " + translated.strip("*") + "\n")
+    seq = seq[0:exp_len]
+    if not str(seq.translate(table= 11)[1:]).replace("*", "U") == expected[1:] :
+        print(seq.translate(table= 11))
+        print(expected)
+        sys.exit(1)
     return str(seq)
 
 ### ** compareExpPredProt(exp, pred)
@@ -1287,8 +1294,6 @@ class GeneTable(ObjectTable) :
                     EMBLRecordGz = gzip.open(EMBLRecord, "r")
                     EMBLRecord = SeqIO.parse(EMBLRecordGz, "embl")
             for record in EMBLRecord :
-                msg = "  record " + record.name
-                self.stderr.write(msg + "\n")
                 allCDS = [x for x in record.features if x.type == "CDS"]
                 for CDS in allCDS :
                     peptideSeq = ";".join(CDS.qualifiers.get("translation", ["None"]))
