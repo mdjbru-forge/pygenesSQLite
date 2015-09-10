@@ -556,11 +556,56 @@ def extractCodingSeqFast(CDS, seqRecord) :
         warnings.warn("CDS with complex location, using "
                       "extractCodingSeqReliable()\n" +
                       str(CDS.location))
-        return extractCodingSeqReliable(CDS, seqRecord)
-    seq = seqRecord.seq[CDS.location.start:CDS.location.end]
-    if CDS.location.strand == -1 :
-        seq = seq.reverse_complement()
+        seq = extractCodingSeqReliableSeq(CDS, seqRecord)
+    else :
+        seq = seqRecord.seq[CDS.location.start:CDS.location.end]
+        if CDS.location.strand == -1 :
+            seq = seq.reverse_complement()
+    # Test for translation
+    checked = False
+    i = 0
+    while (not checked and i < 10) :
+        translated = str((seq[i: ] + "NN").translate(table = 11))
+        i += 1
+        expected = CDS.qualifiers["translation"][0]
+        if compareExpPredProt(translated, expected) :
+            checked = True
+            seq = seq[(i-1):]
+    if not checked :
+        sys.stderr.write("Expected: " + expected + "\n")
+        sys.stderr.write("Predictd: " + translated.strip("*") + "\n")
     return str(seq)
+
+### ** compareExpPredProt(exp, pred)
+
+def compareExpPredProt(exp, pred) :
+    """Compare two protein sequences
+
+    Args:
+        exp (str): Expected sequence (e.g. from qualifiers["translation"][0])
+        pred (str): Predicted sequence (e.g. from Seq.translate())
+
+    Returns:
+        bool: True if sequence identical after removing trailing stop symbols,
+          removing the first aa and checking for selenocysteins in the sequence
+
+    """
+    exp = exp.rstrip("*X")
+    pred = pred.rstrip("*X")
+    if exp[1:] == pred[1:] :
+        return True
+    elif len(exp) != len(pred) :
+        return False
+    else :
+        mismatches = [(i, j) for (i, j) in zip(exp, pred) if i != j]
+        ok = True
+        for m in mismatches :
+            if m != ("U", "*") and m != ("*", "U") :
+                ok = False
+        if ok :
+            return True
+        else :
+            return False
 
 ### ** extractCodingSeqReliable(CDS, seqRecord)
 
@@ -575,6 +620,22 @@ def extractCodingSeqReliable(CDS, seqRecord) :
           nucleotide from
     """
     return str(CDS.extract(seqRecord).seq)
+
+### ** extractCodingSeqReliableSeq(CDS, seqRecord)
+
+def extractCodingSeqReliableSeq(CDS, seqRecord) :
+    """Helper function to get the CDS sequence for a CDS object.
+    Note: This will cope with complex locations, but is slow. See 
+    extractCodingSeqFast for an alternative for simple locations.
+    
+    This function returns a Seq object, not a string.
+
+    Args:
+        CDS (Bio.SeqFeature.SeqFeature): CDS object
+        seqRecord (Bio.SeqRecord.SeqRecord): Original record to extract the 
+          nucleotide from
+    """
+    return CDS.extract(seqRecord).seq
 
 ### ** revComp(DNAstring)
 
@@ -1226,6 +1287,8 @@ class GeneTable(ObjectTable) :
                     EMBLRecordGz = gzip.open(EMBLRecord, "r")
                     EMBLRecord = SeqIO.parse(EMBLRecordGz, "embl")
             for record in EMBLRecord :
+                msg = "  record " + record.name
+                self.stderr.write(msg + "\n")
                 allCDS = [x for x in record.features if x.type == "CDS"]
                 for CDS in allCDS :
                     peptideSeq = ";".join(CDS.qualifiers.get("translation", ["None"]))
