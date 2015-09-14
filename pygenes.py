@@ -830,6 +830,29 @@ def gatherSequences(filename, lengthIndex, targetLength) :
             o.append(line[sequenceI])
     return o
 
+### ** loadLightGeneTable(inputFile, fields)
+
+def loadLightGeneTable(inputFile, fields) :
+    """Load a light version of a gene table, as a dict indexed by geneId
+
+    Args:
+        inputFile (str): Gene table file name
+        fields (list of str): List of fields to extract from the table
+
+    Returns:
+        dict: Mapping between geneId and a list of values corresponding to the
+          requested fields
+    """
+    o = dict()
+    with open(inputFile, "r") as fi :
+        headers = fi.next().strip("#").strip().split("\t")
+        headers_i = [headers.index(f) for f in fields]
+        geneId_i = headers.index("geneId")
+        for l in fi :
+            l = l.strip().split("\t")
+            o[l[geneId_i]] = [l[x] for x in headers_i]
+    return o
+
 ### * Named tuples
 
 # How to set default values for a named tuple:
@@ -858,6 +881,7 @@ AlnPos.__new__.__defaults__ = ("None", ) * 7
 ### ** ObjectTable()
 
 class ObjectTable(object) :
+
     """Parent class for more specific table classes"""
 
 ### *** __init__(self)
