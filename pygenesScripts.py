@@ -263,8 +263,8 @@ def main_SQL_cds(args, stdout, stderr) :
     dbConnection = sql.connect(args.outDb)
     cursor = dbConnection.cursor()
     cursor.execute("DROP TABLE IF EXISTS Cds")
-    cursor.execute("CREATE TABLE Cds (id INTEGER PRIMARY KEY, "
-                   "record TEXT, "
+    cursor.execute("CREATE TABLE Cds ("
+                   "record_id TEXT, "
                    "pepSeq TEXT, "
                    "nucSeq TEXT, "
                    "pepLen INTEGER, "
@@ -273,6 +273,14 @@ def main_SQL_cds(args, stdout, stderr) :
                    "geneName TEXT, "
                    "productName TEXT, "
                    "productAccNum TEXT)")
+    cursor.execute("DROP TABLE IF EXISTS Records")
+    cursor.execute("CREATE TABLE Records ("
+                   "id TEXT UNIQUE, "
+                   "name TEXT, "
+                   "description TEXT, "
+                   "seq TEXT, "
+                   "seqLen INTEGER, "
+                   "genome_filename TEXT)")
     # Go through the EMBL files
     total = str(len(args.emblFiles))
     for (i, f) in enumerate(args.emblFiles) :

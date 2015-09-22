@@ -955,6 +955,7 @@ def openEMBLfile(emblFilename) :
 
 def parseEMBLtoSQL(emblFile, SQLiteCursor) :
     """Load the content of an EMBL file into an SQLite database
+    This will store information into the Cds and Records tables.
 
     Args:
         emblFile (str): Path to the EMBL file (compressed or not)
@@ -968,16 +969,20 @@ def parseEMBLtoSQL(emblFile, SQLiteCursor) :
     rows = list()
     # Collect the data
     for record in EMBLRecord :
+        recordId = record.id
+        SQLiteCursor.execute("INSERT INTO Records ("
+                             "id, name, description, seq, seqLen, "
+                             "genome_filename) VALUES (?, ?, ?, ?, ?, ?)", 
+                             (recordId, record.name, record.description,
+                              str(record.seq), len(str(record.seq)), filename))
         allCDS = [x for x in record.features if x.type == "CDS"]
         for CDS in allCDS :
-            recordId = record.id
             assert len(CDS.qualifiers.get("translation", ["null"])) == 1
             pepSeq = CDS.qualifiers.get("translation", ["null"])[0]
             if pepSeq == "null" :
                 pepLen = "null"
             else :
                 pepLen = len(pepSeq)
-                          
             location = str(CDS.location)
             row = (recordId,
                    pepSeq,
@@ -991,7 +996,7 @@ def parseEMBLtoSQL(emblFile, SQLiteCursor) :
             rows.append(row)
     # Store into the database
     SQLiteCursor.executemany("INSERT INTO Cds ("
-                             "record, pepSeq, nucSeq, pepLen, location, "
+                             "record_id, pepSeq, nucSeq, pepLen, location, "
                              "translationTable, geneName, productName, "
                              "productAccNum) VALUES ("
                              "?, ?, ?, ?, ?, ?, ?, ?, ?" 
