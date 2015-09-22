@@ -267,7 +267,7 @@ def main_SQL_cds(args, stdout, stderr) :
                    "record TEXT, "
                    "pepSeq TEXT, "
                    "nucSeq TEXT, "
-                   "pepLen TEXT, "
+                   "pepLen INTEGER, "
                    "location TEXT, "
                    "translationTable INTEGER, "
                    "geneName TEXT, "

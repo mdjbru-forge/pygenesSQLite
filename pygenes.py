@@ -971,17 +971,23 @@ def parseEMBLtoSQL(emblFile, SQLiteCursor) :
         allCDS = [x for x in record.features if x.type == "CDS"]
         for CDS in allCDS :
             recordId = record.id
-            pepSeq = ";".join(CDS.qualifiers.get("translation", ["None"]))
+            assert len(CDS.qualifiers.get("translation", ["null"])) == 1
+            pepSeq = CDS.qualifiers.get("translation", ["null"])[0]
+            if pepSeq == "null" :
+                pepLen = "null"
+            else :
+                pepLen = len(pepSeq)
+                          
             location = str(CDS.location)
             row = (recordId,
-                   ";".join(CDS.qualifiers.get("translation", ["None"])),
+                   pepSeq,
                    extractCodingSeqFast(CDS, record),
-                   str(len(";".join(CDS.qualifiers.get("translation", ["None"])))),
+                   pepLen,
                    location,
-                   ";".join(CDS.qualifiers.get("transl_table", ["None"])),
-                   ";".join(CDS.qualifiers.get("gene", ["None"])),
-                   ";".join(CDS.qualifiers.get("product", ["None"])),
-                   ";".join(CDS.qualifiers.get("protein_id", ["None"])))
+                   CDS.qualifiers.get("transl_table", ["null"])[0],
+                   CDS.qualifiers.get("gene", ["null"])[0],
+                   CDS.qualifiers.get("product", ["null"])[0],
+                   CDS.qualifiers.get("protein_id", ["null"])[0])
             rows.append(row)
     # Store into the database
     SQLiteCursor.executemany("INSERT INTO Cds ("
