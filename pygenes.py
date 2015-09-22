@@ -853,6 +853,85 @@ def loadLightGeneTable(inputFile, fields) :
             o[l[geneId_i]] = [l[x] for x in headers_i]
     return o
 
+### ** refToStr
+
+def refToStr(refList) :
+    """Convert an EMBL reference list to a string
+
+    Args:
+        refList (list): record.annotations["references"] data from an EMBL 
+          record
+
+    Returns:
+        str: A string containing all the reference information
+    """
+    return "<REFSEP>\n".join([str(x) for x in refList])
+
+### ** dbxrefsToBiosample
+
+def dbxrefsToBiosample(dbxrefs, defaultBiosample = None) :
+    """Extract the biosample information from a list of database cross references
+    of an EMBL record
+
+    Args:
+        dbxrefs (list): record.dbxrefs from an EMBL record
+        defaultBiosample (str): Return value if not exactly one BioSample value 
+          is found. If None, throw an exception.
+
+    Returns:
+        str: The biosample identity
+    """
+    if defaultBiosample is None :
+        assert sum([x.startswith("BioSample:") for x in dbxrefs]) == 1
+    if sum([x.startswith("BioSample:") for x in dbxrefs]) == 1 :
+        return [x.split(":")[1] for x in dbxrefs if x.startswith("BioSample:")][0]
+    else :
+        print("Not exactly one BioSample identity for " + str(dbxrefs))
+        return defaultBiosample
+
+### ** EMBLFileInfo
+
+def EMBLFileInfo(emblFile, defaultBiosample = "NA") :
+
+    """Extract basic information from an EMBL file. Returns None if there
+    was a problem with the file parsing (e.g. empty file).
+
+    Args:
+        emblFile (str): Path to an EMBL file (not compressed)
+        defaultBiosample (str): Default string when no BioSample information is 
+          present. If set to None, throw an error if BioSample is missing.
+
+    Returns:
+        dict: A dictionary with filename, organism, biosample, references,
+          nRecords
+    """
+    entry = SeqIO.parse(emblFile, "embl")
+    try :
+        record = entry.next()
+    except :
+        print("Error with " + emblFile)
+        return None
+    nRecords = 1
+    filename = os.path.basename(emblFile)
+    organism = record.annotations["organism"]
+    references = refToStr(record.annotations["references"])
+    biosample = dbxrefsToBiosample(record.dbxrefs, defaultBiosample)
+    for r in entry :
+        r_organism = record.annotations["organism"]
+        r_references = refToStr(record.annotations["references"])
+        r_biosample = dbxrefsToBiosample(record.dbxrefs, defaultBiosample)
+        assert all([organism == r_organism,
+                    references == r_references,
+                    biosample == r_biosample])
+        nRecords += 1
+    o = dict()
+    o["organism"] = organism
+    o["references"] = references
+    o["biosample"] = biosample
+    o["nRecords"] = nRecords
+    o["filename"] = filename
+    return o    
+
 ### * Named tuples
 
 # How to set default values for a named tuple:

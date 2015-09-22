@@ -24,7 +24,9 @@ import sys
 import argparse
 import shutil
 import hashlib
+import os
 import collections
+import sqlite3 as sql
 from Bio import SeqIO
 import pygenes as pygenes
 
@@ -39,7 +41,7 @@ def makeParser() :
     """
     parser = argparse.ArgumentParser(description = DESCRIPTION)
     subparsers = parser.add_subparsers()
-    # Parse GenBank records
+### ** Parse GenBank records
     sp_parseGB = subparsers.add_parser("parseGB",
                                      description = "Parse GenBank records into "
                                      "a gene table.",
@@ -52,7 +54,7 @@ def makeParser() :
     sp_parseGB.add_argument("-r", "--records", metavar = "FILE", type = str,
                           help = "Output file for record table")
     sp_parseGB.set_defaults(action = "parseGB")
-    # Parse EMBL records
+### ** Parse EMBL records
     sp_parseEMBL = subparsers.add_parser("parseEMBL",
                                      description = "Parse EMBL records into "
                                      "a gene table.",
@@ -65,7 +67,20 @@ def makeParser() :
     sp_parseEMBL.add_argument("-r", "--records", metavar = "FILE", type = str,
                           help = "Output file for record table")
     sp_parseEMBL.set_defaults(action = "parseEMBL")
-    # # Calculate hash digests
+### ** Build SQL genome table from EMBL files
+    sp_SQL_Genomes = subparsers.add_parser("SQL_genomes",
+                                           description = "Parse EMBL files into an SQLite "
+                                           "Genomes table",
+                                           help = "Parse EMBL files into an SQLite Genomes "
+                                           "table")
+    sp_SQL_Genomes.add_argument("-o", "--outDb", type = str,
+                                help = "Output database (Genomes table will be "
+                                "deleted in the database if it already exists)")
+    sp_SQL_Genomes.add_argument("emblFiles", metavar = "EMBL_FILE", nargs = "+",
+                                type = str,
+                                help = "EMBL file(s) (not compressed)")
+    sp_SQL_Genomes.set_defaults(action = "SQL_genomes")
+### ** # Calculate hash digests
     # sp_hash = subparsers.add_parser("hash",
     #                                 help = "Produce hash digest (e.g. for peptides)")
     # sp_hash.add_argument("input", metavar = "INPUT_TABLE", type = str,
@@ -79,7 +94,7 @@ def makeParser() :
     #                      help = "Hash algorithm to use for unique sequence signature "
     #                      "(default: md5)")
     # sp_hash.set_defaults(action = "hash")
-    # Merge peptides (from gene table)
+### ** Merge peptides (from gene table)
     sp_mergePep = subparsers.add_parser("mergePep",
                                      help = "Merge similar peptides")
     sp_mergePep.add_argument("input", metavar = "INPUT_TABLE", type = str,
@@ -92,7 +107,7 @@ def makeParser() :
     sp_mergePep.add_argument("-f", "--fasta", metavar = "FILE", type = str,
                       help = "Output fasta file for merged peptides")
     sp_mergePep.set_defaults(action = "mergePep")
-    # Extract columns
+### ** Extract columns
     sp_extract = subparsers.add_parser("extract",
                                        help = "Extract some columns from a "
                                        "table. Output is sent to stdout.")
@@ -105,7 +120,7 @@ def makeParser() :
                             help = "Table type (default: gene)",
                             default = "gene")
     sp_extract.set_defaults(action = "extract")
-    # Count unique sequences in a fasta file
+### ** Count unique sequences in a fasta file
     sp_countUniqFasta = subparsers.add_parser("count",
                                               help = "Count unique sequences in "
                                               "a fasta file (using hash)")
@@ -113,7 +128,7 @@ def makeParser() :
                                    type = str, nargs = "+",
                                    help = "Input fasta file(s)")
     sp_countUniqFasta.set_defaults(action = "count")
-    # Return
+### ** Return parser
     return parser
 
 ### * Mains
@@ -140,6 +155,7 @@ def main(args = None, stdout = None, stderr = None) :
     dispatch = dict()
     dispatch["parseGB"] = main_parseGB
     dispatch["parseEMBL"] = main_parseEMBL
+    dispatch["SQL_genomes"] = main_SQL_genomes
     dispatch["hash"] = main_hash
     dispatch["mergePep"] = main_mergePep
     dispatch["extract"] = main_extract
@@ -191,6 +207,40 @@ def main_parseEMBL(args, stdout, stderr) :
             for r in args.emblRecords :
                 recordTable.streamEMBLRecord(r, fo, headers)
     sys.exit(0)
+
+### ** Main SQL_genomes
+
+def main_SQL_genomes(args, stdout, stderr) :
+    # Create the table
+    dbConnection = sql.connect(args.outDb)
+    cursor = dbConnection.cursor()
+    cursor.execute("DROP TABLE IF EXISTS Genomes")
+    cursor.execute("CREATE TABLE Genomes (id INTEGER PRIMARY KEY, "
+                   "filename TEXT, "
+                   "biosample TEXT, "
+                   "organism TEXT, "
+                   "nRecords INTEGER, "
+                   "refs TEXT)")
+    # Go through the EMBL files
+    total = str(len(args.emblFiles))
+    for (i, f) in enumerate(args.emblFiles) :
+        stderr.write("Processing file " + str(i) + "/" + total + " - " +
+                     os.path.basename(f) + "\n")
+        d = pygenes.EMBLFileInfo(f)
+        if d is not None  :
+            cursor.execute("INSERT INTO Genomes (filename, biosample, "
+                           "organism, nRecords, refs) "
+                           "VALUES (\"{filename}\", \"{biosample}\", "
+                           "\"{organism}\", {nRecords}, \"{references}\" "
+                           ")".format(filename = d["filename"],
+                                      biosample = d["biosample"],
+                                      organism = d["organism"],
+                                      nRecords = str(d["nRecords"]),
+                                      references = d["references"]))
+            dbConnection.commit()
+
+    # Close the connection
+    dbConnection.close()
     
 ### ** Main hash
 
