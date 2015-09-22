@@ -932,6 +932,25 @@ def EMBLFileInfo(emblFile, defaultBiosample = "NA") :
     o["filename"] = filename
     return o    
 
+### ** openEMBLfile(emblFilename)
+
+def openEMBLfile(emblFilename) :
+    """Open an EMBL file (can be compressed)
+
+    Args:
+        emblFilename (str): Path to an EMBL file (can be gzipped)
+
+    Returns:
+        list: A list of the SeqRecord objects from the EMBL file
+    """
+    if not emblFilename.endswith(".gz") :
+        EMBLRecord = SeqIO.parse(emblFilename, "embl")
+        return list(EMBLRecord)
+    else :
+        with gzip.open(emblFilename, "r") as EMBLRecordGz :
+            EMBLRecord = SeqIO.parse(EMBLRecordGz, "embl")
+            return list(EMBLRecord)
+
 ### * Named tuples
 
 # How to set default values for a named tuple:
@@ -1393,13 +1412,7 @@ class GeneTable(ObjectTable) :
             msg = "(stream) Parsing EMBL record " + str(self.nParsedRecords)
             self.stderr.write(msg + "\n")
             if isinstance(EMBLRecord, str) :
-                if not EMBLRecord.endswith(".gz") :
-                    EMBLRecordGzToClose = False
-                    EMBLRecord = SeqIO.parse(EMBLRecord, "embl")
-                else :
-                    EMBLRecordGzToClose = True
-                    EMBLRecordGz = gzip.open(EMBLRecord, "r")
-                    EMBLRecord = SeqIO.parse(EMBLRecordGz, "embl")
+                EMBLRecord = openEMBLfile(EMBLRecord)
             for record in EMBLRecord :
                 allCDS = [x for x in record.features if x.type == "CDS"]
                 for CDS in allCDS :
@@ -1428,8 +1441,6 @@ class GeneTable(ObjectTable) :
                       proteinId = ";".join(CDS.qualifiers.get("protein_id", ["None"])))
                     geneDict = gene._asdict()
                     outFile.write("\t".join([str(geneDict[x]) for x in headers]) + "\n")
-            if EMBLRecordGzToClose :
-                EMBLRecordGz.close()
                     
 ### *** makeGeneId(self)
 
