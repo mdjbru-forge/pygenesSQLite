@@ -67,32 +67,19 @@ def makeParser() :
     sp_parseEMBL.add_argument("-r", "--records", metavar = "FILE", type = str,
                           help = "Output file for record table")
     sp_parseEMBL.set_defaults(action = "parseEMBL")
-### ** Build SQL Genomes table from EMBL files
-    sp_SQL_Genomes = subparsers.add_parser("SQL_genomes",
+### ** Build SQL Genomes, Cds and Records tables from EMBL files
+    sp_SQL_EMBL = subparsers.add_parser("parseEMBLtoSQL",
                                            description = "Parse EMBL files into an SQLite "
-                                           "Genomes table",
-                                           help = "Parse EMBL files into an SQLite Genomes "
-                                           "table")
-    sp_SQL_Genomes.add_argument("-o", "--outDb", type = str,
-                                help = "Output database (Genomes table will be "
+                                           "database",
+                                           help = "Parse EMBL files into a new SQLite "
+                                           "database")
+    sp_SQL_EMBL.add_argument("-o", "--outDb", type = str,
+                                help = "Output database (tables will be "
                                 "deleted in the database if it already exists)")
-    sp_SQL_Genomes.add_argument("emblFiles", metavar = "EMBL_FILE", nargs = "+",
+    sp_SQL_EMBL.add_argument("emblFiles", metavar = "EMBL_FILE", nargs = "+",
                                 type = str,
                                 help = "EMBL file(s) (not compressed)")
-    sp_SQL_Genomes.set_defaults(action = "SQL_genomes")
-### ** Build SQL Cds table from EMBL files
-    sp_SQL_Cds = subparsers.add_parser("SQL_cds",
-                                           description = "Parse EMBL files into an SQLite "
-                                           "Cds table",
-                                           help = "Parse EMBL files into an SQLite Cds "
-                                           "table")
-    sp_SQL_Cds.add_argument("-o", "--outDb", type = str,
-                                help = "Output database (Cds table will be "
-                                "deleted in the database if it already exists)")
-    sp_SQL_Cds.add_argument("emblFiles", metavar = "EMBL_FILE", nargs = "+",
-                                type = str,
-                                help = "EMBL file(s) (not compressed)")
-    sp_SQL_Cds.set_defaults(action = "SQL_cds")
+    sp_SQL_EMBL.set_defaults(action = "SQL_EMBL")
 ### ** # Calculate hash digests
     # sp_hash = subparsers.add_parser("hash",
     #                                 help = "Produce hash digest (e.g. for peptides)")
@@ -168,8 +155,7 @@ def main(args = None, stdout = None, stderr = None) :
     dispatch = dict()
     dispatch["parseGB"] = main_parseGB
     dispatch["parseEMBL"] = main_parseEMBL
-    dispatch["SQL_genomes"] = main_SQL_genomes
-    dispatch["SQL_cds"] = main_SQL_cds
+    dispatch["SQL_EMBL"] = main_SQL_EMBL
     dispatch["hash"] = main_hash
     dispatch["mergePep"] = main_mergePep
     dispatch["extract"] = main_extract
@@ -222,43 +208,9 @@ def main_parseEMBL(args, stdout, stderr) :
                 recordTable.streamEMBLRecord(r, fo, headers)
     sys.exit(0)
 
-### ** Main SQL_genomes
+### ** Main SQL_EMBL
 
-def main_SQL_genomes(args, stdout, stderr) :
-    # Create the table
-    dbConnection = sql.connect(args.outDb)
-    cursor = dbConnection.cursor()
-    cursor.execute("DROP TABLE IF EXISTS Genomes")
-    cursor.execute("CREATE TABLE Genomes (id INTEGER PRIMARY KEY, "
-                   "filename TEXT, "
-                   "biosample TEXT, "
-                   "organism TEXT, "
-                   "nRecords INTEGER, "
-                   "refs TEXT)")
-    # Go through the EMBL files
-    total = str(len(args.emblFiles))
-    for (i, f) in enumerate(args.emblFiles) :
-        stderr.write("Processing file " + str(i) + "/" + total + " - " +
-                     os.path.basename(f) + "\n")
-        d = pygenes.EMBLFileInfo(f)
-        if d is not None  :
-            cursor.execute("INSERT INTO Genomes (filename, biosample, "
-                           "organism, nRecords, refs) "
-                           "VALUES (\"{filename}\", \"{biosample}\", "
-                           "\"{organism}\", {nRecords}, \"{references}\" "
-                           ")".format(filename = d["filename"],
-                                      biosample = d["biosample"],
-                                      organism = d["organism"],
-                                      nRecords = str(d["nRecords"]),
-                                      references = d["references"]))
-            dbConnection.commit()
-
-    # Close the connection
-    dbConnection.close()
-
-### ** Main SQL_cds
-
-def main_SQL_cds(args, stdout, stderr) :
+def main_SQL_EMBL(args, stdout, stderr) :
     # Create the table
     dbConnection = sql.connect(args.outDb)
     cursor = dbConnection.cursor()
@@ -281,11 +233,32 @@ def main_SQL_cds(args, stdout, stderr) :
                    "seq TEXT, "
                    "seqLen INTEGER, "
                    "genome_filename TEXT)")
+    cursor.execute("DROP TABLE IF EXISTS Genomes")
+    cursor.execute("CREATE TABLE Genomes ("
+                   "filename TEXT UNIQUE, "
+                   "biosample TEXT UNIQUE, "
+                   "organism TEXT, "
+                   "nRecords INTEGER, "
+                   "refs TEXT)")
     # Go through the EMBL files
     total = str(len(args.emblFiles))
     for (i, f) in enumerate(args.emblFiles) :
         stderr.write("Processing file " + str(i) + "/" + total + " - " +
                      os.path.basename(f) + "\n")
+        # Genomes table
+        d = pygenes.EMBLFileInfo(f)
+        if d is not None  :
+            cursor.execute("INSERT INTO Genomes (filename, biosample, "
+                           "organism, nRecords, refs) "
+                           "VALUES (\"{filename}\", \"{biosample}\", "
+                           "\"{organism}\", {nRecords}, \"{references}\" "
+                           ")".format(filename = d["filename"],
+                                      biosample = d["biosample"],
+                                      organism = d["organism"],
+                                      nRecords = str(d["nRecords"]),
+                                      references = d["references"]))
+            dbConnection.commit()
+        # Cds and Records tables
         pygenes.parseEMBLtoSQL(f, cursor)
         dbConnection.commit()
     # Close the connection
