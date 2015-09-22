@@ -951,6 +951,46 @@ def openEMBLfile(emblFilename) :
             EMBLRecord = SeqIO.parse(EMBLRecordGz, "embl")
             return list(EMBLRecord)
 
+### ** parseEMBLtoSQL(emblFile, SQLiteCursor)
+
+def parseEMBLtoSQL(emblFile, SQLiteCursor) :
+    """Load the content of an EMBL file into an SQLite database
+
+    Args:
+        emblFile (str): Path to the EMBL file (compressed or not)
+        SQLiteCursor (sqlite3.Cursor): Cursor to a connected SQLite database
+
+    """
+    EMBLRecord = openEMBLfile(emblFile)
+    filename = os.path.basename(emblFile)
+    if filename.endswith(".gz") :
+        filename = filename[-3:]
+    rows = list()
+    # Collect the data
+    for record in EMBLRecord :
+        allCDS = [x for x in record.features if x.type == "CDS"]
+        for CDS in allCDS :
+            recordId = record.id
+            pepSeq = ";".join(CDS.qualifiers.get("translation", ["None"]))
+            location = str(CDS.location)
+            row = (recordId,
+                   ";".join(CDS.qualifiers.get("translation", ["None"])),
+                   extractCodingSeqFast(CDS, record),
+                   str(len(";".join(CDS.qualifiers.get("translation", ["None"])))),
+                   location,
+                   ";".join(CDS.qualifiers.get("transl_table", ["None"])),
+                   ";".join(CDS.qualifiers.get("gene", ["None"])),
+                   ";".join(CDS.qualifiers.get("product", ["None"])),
+                   ";".join(CDS.qualifiers.get("protein_id", ["None"])))
+            rows.append(row)
+    # Store into the database
+    SQLiteCursor.executemany("INSERT INTO Cds ("
+                             "record, pepSeq, nucSeq, pepLen, location, "
+                             "translationTable, geneName, productName, "
+                             "productAccNum) VALUES ("
+                             "?, ?, ?, ?, ?, ?, ?, ?, ?" 
+                             ")", rows)
+
 ### * Named tuples
 
 # How to set default values for a named tuple:

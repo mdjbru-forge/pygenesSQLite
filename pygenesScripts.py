@@ -67,7 +67,7 @@ def makeParser() :
     sp_parseEMBL.add_argument("-r", "--records", metavar = "FILE", type = str,
                           help = "Output file for record table")
     sp_parseEMBL.set_defaults(action = "parseEMBL")
-### ** Build SQL genome table from EMBL files
+### ** Build SQL Genomes table from EMBL files
     sp_SQL_Genomes = subparsers.add_parser("SQL_genomes",
                                            description = "Parse EMBL files into an SQLite "
                                            "Genomes table",
@@ -80,6 +80,19 @@ def makeParser() :
                                 type = str,
                                 help = "EMBL file(s) (not compressed)")
     sp_SQL_Genomes.set_defaults(action = "SQL_genomes")
+### ** Build SQL Cds table from EMBL files
+    sp_SQL_Cds = subparsers.add_parser("SQL_cds",
+                                           description = "Parse EMBL files into an SQLite "
+                                           "Cds table",
+                                           help = "Parse EMBL files into an SQLite Cds "
+                                           "table")
+    sp_SQL_Cds.add_argument("-o", "--outDb", type = str,
+                                help = "Output database (Cds table will be "
+                                "deleted in the database if it already exists)")
+    sp_SQL_Cds.add_argument("emblFiles", metavar = "EMBL_FILE", nargs = "+",
+                                type = str,
+                                help = "EMBL file(s) (not compressed)")
+    sp_SQL_Cds.set_defaults(action = "SQL_cds")
 ### ** # Calculate hash digests
     # sp_hash = subparsers.add_parser("hash",
     #                                 help = "Produce hash digest (e.g. for peptides)")
@@ -156,6 +169,7 @@ def main(args = None, stdout = None, stderr = None) :
     dispatch["parseGB"] = main_parseGB
     dispatch["parseEMBL"] = main_parseEMBL
     dispatch["SQL_genomes"] = main_SQL_genomes
+    dispatch["SQL_cds"] = main_SQL_cds
     dispatch["hash"] = main_hash
     dispatch["mergePep"] = main_mergePep
     dispatch["extract"] = main_extract
@@ -239,6 +253,33 @@ def main_SQL_genomes(args, stdout, stderr) :
                                       references = d["references"]))
             dbConnection.commit()
 
+    # Close the connection
+    dbConnection.close()
+
+### ** Main SQL_cds
+
+def main_SQL_cds(args, stdout, stderr) :
+    # Create the table
+    dbConnection = sql.connect(args.outDb)
+    cursor = dbConnection.cursor()
+    cursor.execute("DROP TABLE IF EXISTS Cds")
+    cursor.execute("CREATE TABLE Cds (id INTEGER PRIMARY KEY, "
+                   "record TEXT, "
+                   "pepSeq TEXT, "
+                   "nucSeq TEXT, "
+                   "pepLen TEXT, "
+                   "location TEXT, "
+                   "translationTable INTEGER, "
+                   "geneName TEXT, "
+                   "productName TEXT, "
+                   "productAccNum TEXT)")
+    # Go through the EMBL files
+    total = str(len(args.emblFiles))
+    for (i, f) in enumerate(args.emblFiles) :
+        stderr.write("Processing file " + str(i) + "/" + total + " - " +
+                     os.path.basename(f) + "\n")
+        pygenes.parseEMBLtoSQL(f, cursor)
+        dbConnection.commit()
     # Close the connection
     dbConnection.close()
     
