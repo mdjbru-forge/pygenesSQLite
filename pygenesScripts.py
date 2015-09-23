@@ -214,6 +214,22 @@ def main_SQL_EMBL(args, stdout, stderr) :
     # Create the table
     dbConnection = sql.connect(args.outDb)
     cursor = dbConnection.cursor()
+    cursor.execute("DROP TABLE IF EXISTS Genomes")
+    cursor.execute("CREATE TABLE Genomes ("
+                   "filename TEXT UNIQUE, "
+                   "biosample TEXT, "
+                   "organism TEXT, "
+                   "nRecords INTEGER, "
+                   "refs TEXT)")
+    cursor.execute("DROP TABLE IF EXISTS Records")
+    cursor.execute("CREATE TABLE Records ("
+                   "id TEXT UNIQUE, "
+                   "name TEXT, "
+                   "description TEXT, "
+                   "seq TEXT, "
+                   "seqLen INTEGER, "
+                   "genome_filename TEXT, "
+                   "FOREIGN KEY (genome_filename) REFERENCES Genomes(filename))")
     cursor.execute("DROP TABLE IF EXISTS Cds")
     cursor.execute("CREATE TABLE Cds ("
                    "record_id TEXT, "
@@ -224,22 +240,8 @@ def main_SQL_EMBL(args, stdout, stderr) :
                    "translationTable INTEGER, "
                    "geneName TEXT, "
                    "productName TEXT, "
-                   "productAccNum TEXT)")
-    cursor.execute("DROP TABLE IF EXISTS Records")
-    cursor.execute("CREATE TABLE Records ("
-                   "id TEXT UNIQUE, "
-                   "name TEXT, "
-                   "description TEXT, "
-                   "seq TEXT, "
-                   "seqLen INTEGER, "
-                   "genome_filename TEXT)")
-    cursor.execute("DROP TABLE IF EXISTS Genomes")
-    cursor.execute("CREATE TABLE Genomes ("
-                   "filename TEXT UNIQUE, "
-                   "biosample TEXT UNIQUE, "
-                   "organism TEXT, "
-                   "nRecords INTEGER, "
-                   "refs TEXT)")
+                   "productAccNum TEXT, "
+                   "FOREIGN KEY (record_id) REFERENCES Records(id))")
     # Go through the EMBL files
     total = str(len(args.emblFiles))
     for (i, f) in enumerate(args.emblFiles) :
@@ -261,6 +263,9 @@ def main_SQL_EMBL(args, stdout, stderr) :
         # Cds and Records tables
         pygenes.parseEMBLtoSQL(f, cursor)
         dbConnection.commit()
+    # Create index
+    cursor.execute("CREATE INDEX idx_pepLen ON Cds (pepLen)")
+    dbConnection.commit()
     # Close the connection
     dbConnection.close()
     
