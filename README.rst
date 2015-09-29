@@ -4,7 +4,7 @@ Install
 -------
 ::
 
-   pip install --user --upgrade git+https://github.com/mdjbru-forge/pygenes
+   pip install --user --upgrade git+https://github.com/mdjbru-forge/pygenesSQLite
    # Check that it worked
    pygenes -h
 
@@ -12,4 +12,4 @@ Uninstall
 ---------
 ::
 
-   pip uninstall -y pygenes
+   pip uninstall -y pygenesSQLite
