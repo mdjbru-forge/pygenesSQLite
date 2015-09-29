@@ -28,7 +28,7 @@ import os
 import collections
 import sqlite3 as sql
 from Bio import SeqIO
-import pygenes as pygenes
+import pygenesSQLite as pygenes
 
 ### * Parser
 
@@ -230,18 +230,23 @@ def main_SQL_EMBL(args, stdout, stderr) :
                    "seqLen INTEGER, "
                    "genome_filename TEXT, "
                    "FOREIGN KEY (genome_filename) REFERENCES Genomes(filename))")
+    cursor.execute("DROP TABLE IF EXISTS Peptides")
+    cursor.execute("CREATE TABLE Peptides ("
+                   "pepSeq TEXT UNIQUE, "
+                   "pepLen INTEGER, "
+                   "mergedPeptides_id INTEGER)")
     cursor.execute("DROP TABLE IF EXISTS Cds")
     cursor.execute("CREATE TABLE Cds ("
                    "record_id TEXT, "
-                   "pepSeq TEXT, "
+                   "peptide_rowid INTEGER, "
                    "nucSeq TEXT, "
-                   "pepLen INTEGER, "
                    "location TEXT, "
                    "translationTable INTEGER, "
                    "geneName TEXT, "
                    "productName TEXT, "
                    "productAccNum TEXT, "
-                   "FOREIGN KEY (record_id) REFERENCES Records(id))")
+                   "FOREIGN KEY (record_id) REFERENCES Records(id), "
+                   "FOREIGN KEY (peptide_rowid) REFERENCES Peptides(rowid))")
     # Go through the EMBL files
     total = str(len(args.emblFiles))
     for (i, f) in enumerate(args.emblFiles) :
@@ -264,7 +269,8 @@ def main_SQL_EMBL(args, stdout, stderr) :
         pygenes.parseEMBLtoSQL(f, cursor)
         dbConnection.commit()
     # Create index
-    cursor.execute("CREATE INDEX idx_pepLen ON Cds (pepLen)")
+    cursor.execute("CREATE INDEX idx_pepLen ON Peptides (pepLen)")
+    cursor.execute("CREATE INDEX idx_peptide_rowid ON Cds (peptide_rowid)")
     dbConnection.commit()
     # Close the connection
     dbConnection.close()

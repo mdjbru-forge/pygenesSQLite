@@ -4,12 +4,12 @@
 
 from setuptools import setup, find_packages
 
-setup(name = "pygenes",
+setup(name = "pygenesSQLite",
       version = "0.0.11",
-      py_modules = ["pygenes", "pygenesScripts"],
+      py_modules = ["pygenesSQLite", "pygenesSQLiteScripts"],
       entry_points =  {
           "console_scripts" : [
-              "pygenes=pygenesScripts:main"
+              "pygenesSQLite=pygenesSQLiteScripts:main"
           ]
       }
 )
